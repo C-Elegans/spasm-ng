@@ -571,7 +571,7 @@ int parse_suffix(char **opcode_end) {
  */
 
 char *match_opcode_args (char *ptr, char **arg_ptrs, char **arg_end_ptrs, opcode *curr_opcode, instr **curr_instr) {
-	char *curr_arg_file;
+	char *curr_arg_file = NULL;
 	int instr_num;
 
 	for (instr_num = 0; instr_num < curr_opcode->num_instrs; instr_num++) {
@@ -592,6 +592,10 @@ char *match_opcode_args (char *ptr, char **arg_ptrs, char **arg_end_ptrs, opcode
 				if (is_end_of_code_line (curr_arg_file) || *curr_arg_file == '\\')
 					break;
 
+				// if a name starts with, but is longer than, "ix" or "iy", don't match index offset
+				if (*curr_arg == '@' && is_name_char(*curr_arg_file))
+					break;
+
 				arg_ptrs[curr_arg_num] = curr_arg_file;
 				BOOL test = read_expr (&curr_arg_file, trash_buf, ",");
 				if (*(curr_arg_file - 1) == ',')
@@ -606,7 +610,9 @@ char *match_opcode_args (char *ptr, char **arg_ptrs, char **arg_end_ptrs, opcode
 
 				curr_arg_file++;
 			}
-			curr_arg_file = skip_whitespace (curr_arg_file);
+			// only skip whitespace if not in the middle of a register
+			if (!isalpha(*(curr_arg_file - 1)) || !isalpha(*curr_arg_file))
+				curr_arg_file = skip_whitespace (curr_arg_file);
 			curr_arg++;
 		}
 
@@ -677,6 +683,7 @@ int write_instruction_data (instr *curr_instr, char **arg_ptrs, char **arg_end_p
 			//first get the text of each argument
 			char *arg_text = strndup (arg_ptrs[curr_arg_num],
 			                          arg_end_ptrs[curr_arg_num] - arg_ptrs[curr_arg_num]);
+			char *fake_arg_text;
 
 			// Check for extra parentheses (confusingly looks like indirection)
 			if (arg_text[0] == '(') {
@@ -718,8 +725,19 @@ int write_instruction_data (instr *curr_instr, char **arg_ptrs, char **arg_end_p
 					add_pass_two_expr (arg_text, ARG_ADDR_OFFSET, size, 0);
 					free (arg_text);
 					break;
-				case '@': //8-bit IX/IY offset	
-					add_pass_two_expr (arg_text, ARG_IX_IY_OFFSET, size, 0);
+				case '@': //8-bit IX/IY offset
+					if (arg_text[0] != '\0' && arg_text[0] != '+' && arg_text[0] != '-')
+						SetLastSPASMError(SPASM_ERR_INVALID_INDEX_OFFSET);
+					else {
+						// prefix the arg with "0" so that the first "+" or "-" is
+						// correctly parsed as an operator, and not part of a local
+						// label, also handles an empty arg
+						fake_arg_text = (char *)malloc (1 + strlen(arg_text) + 1);
+						fake_arg_text[0] = '0';
+						strcpy (fake_arg_text + 1, arg_text);
+						add_pass_two_expr (fake_arg_text, ARG_IX_IY_OFFSET, size, 0);
+						free (fake_arg_text);
+					}
 					free (arg_text);
 					break;
 				case '^': //bit number

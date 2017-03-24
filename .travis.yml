@@ -10,9 +10,11 @@ install:
 
 script:
   - make NO_APPSIGN=1
+  - make check
   - make clean
   - sudo apt-get install -y -qq libssl-dev libgmp-dev
   - make
+  - make check
   - make PYTHON=python3.5 coverage
 
 after_success:
