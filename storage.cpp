@@ -47,7 +47,11 @@ void write_labels (char *filename) {
 
 	symtable = fopen (filename, "w");
 	if (!symtable) {
-		printf ("Couldn't open output file %s\n", filename);
+		int error = errno;
+		if (errno == ENOENT)
+			SetLastSPASMError(SPASM_ERR_FILE_NOT_FOUND, filename);
+		else
+			SetLastSPASMError(SPASM_ERR_NO_ACCESS, filename);
 		return;
 	}
 
@@ -60,7 +64,7 @@ void write_labels (char *filename) {
 	int session = StartSPASMErrorSession();
 	hash_enum (label_table, write_labels_callback, &label_list);
 	hash_enum (define_table, write_defines_callback, &label_list);
-	EndSPASMErrorSession(CleanupSPASMErrorSession((session)));
+	EndSPASMErrorSession(session);
 	
 	node = label_list.next;
 	int index = 0;

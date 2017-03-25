@@ -118,7 +118,7 @@ int run_assembly()
 	int first_pass_session = StartSPASMErrorSession();
 	run_first_pass ((char *) input_contents);
 	ReplayFatalSPASMErrorSession(first_pass_session);
-	EndSPASMErrorSession(CleanupSPASMErrorSession((first_pass_session)));
+	EndSPASMErrorSession(first_pass_session);
 	
 	
 	//free include dirs when done
@@ -138,18 +138,24 @@ int run_assembly()
 		int second_pass_session = StartSPASMErrorSession();
 		run_second_pass ();
 		ReplaySPASMErrorSession(second_pass_session);
-		EndSPASMErrorSession(CleanupSPASMErrorSession((second_pass_session)));
+		EndSPASMErrorSession(second_pass_session);
 
 		if (mode & MODE_SYMTABLE) {
+			int symtable_session = StartSPASMErrorSession();
 			char* fileName = change_extension(output_filename, "lab");
 			write_labels (fileName);
 			free(fileName);
+			ReplayFatalSPASMErrorSession(symtable_session);
+			EndSPASMErrorSession(symtable_session);
 		}
 		
 		//run the output through the appropriate program export and write it to a file
 		if (mode & MODE_NORMAL && output_filename != NULL)
 		{
+			int write_session = StartSPASMErrorSession();
 			write_file (output_contents, out_ptr - output_contents, output_filename);
+			ReplayFatalSPASMErrorSession(write_session);
+			EndSPASMErrorSession(write_session);
 		}
 
 		//write the listing file if necessary
